@@ -5,7 +5,6 @@ import Navbar from '@/components/Navbar'
 import { supabase } from '@/lib/supabase'
 import { Download, ArrowLeft, Printer, Edit, Save, X, PlusCircle, Trash2 } from 'lucide-react'
 import jsPDF from 'jspdf'
-import html2canvas from 'html2canvas'
 
 export default function ViewProforma() {
   const { id } = useParams()
@@ -94,8 +93,205 @@ export default function ViewProforma() {
     setSaving(false)
   }
 
-  function exportPDF() {
-    window.print()
+  async function exportPDF() {
+    const pdf = new jsPDF('p', 'mm', 'a4')
+    const W = 210
+    const blue = [26, 58, 92]
+    const white = [255, 255, 255]
+    const lightGray = [248, 248, 248]
+    const darkGray = [80, 80, 80]
+    let y = 0
+
+    // ── Charger les images ────────────────────────────────────
+    const loadImage = (url) => new Promise((resolve) => {
+      const img = new Image()
+      img.crossOrigin = 'anonymous'
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        canvas.width = img.width
+        canvas.height = img.height
+        canvas.getContext('2d').drawImage(img, 0, 0)
+        resolve({ data: canvas.toDataURL('image/png'), w: img.width, h: img.height })
+      }
+      img.onerror = () => resolve(null)
+      img.src = url
+    })
+
+    const [logoImg, signImg] = await Promise.all([
+      settings?.logo_url ? loadImage(settings.logo_url) : Promise.resolve(null),
+      settings?.signature_url ? loadImage(settings.signature_url) : Promise.resolve(null),
+    ])
+
+    // ── EN-TÊTE ───────────────────────────────────────────────
+    // Logo
+    if (logoImg) {
+      const logoH = 18
+      const logoW = (logoImg.w * logoH) / logoImg.h
+      pdf.addImage(logoImg.data, 'PNG', 10, 10, logoW, logoH)
+    } else {
+      pdf.setTextColor(...blue)
+      pdf.setFont('helvetica', 'bold')
+      pdf.setFontSize(11)
+      pdf.text(settings?.company_name || '', 10, 20)
+    }
+
+    // Titre PRO FORMA
+    pdf.setTextColor(...blue)
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(26)
+    pdf.text('PRO FORMA', W - 10, 16, { align: 'right' })
+
+    // Infos proforma
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(9)
+    pdf.setTextColor(...darkGray)
+    pdf.text(`Numéro : ${proforma.numero}`, W - 10, 23, { align: 'right' })
+    pdf.text(`Date : ${new Date(proforma.date).toLocaleDateString('fr-FR')}`, W - 10, 28, { align: 'right' })
+    pdf.text(`Validité : ${settings?.validity_days || 15} jours`, W - 10, 33, { align: 'right' })
+    pdf.text(`Numéro IFU : ${settings?.ifu || ''}`, W - 10, 38, { align: 'right' })
+
+    y = 46
+
+    // Ligne de séparation
+    pdf.setDrawColor(220, 220, 220)
+    pdf.line(10, y, W - 10, y)
+    y += 6
+
+    // ── CLIENT ────────────────────────────────────────────────
+    pdf.setTextColor(...blue)
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(9)
+    pdf.text('PAYABLE TO', 10, y)
+    y += 5
+
+    pdf.setTextColor(50, 50, 50)
+    pdf.setFontSize(9)
+    const clientFields = [
+      ['Nom / Raison sociale', proforma.client_name],
+      ['Adresse', proforma.client_address],
+      ['Téléphone', proforma.client_phone],
+      ['Email', proforma.client_email],
+    ]
+    clientFields.forEach(([label, val]) => {
+      pdf.setFont('helvetica', 'bold')
+      pdf.text(`${label} :`, 10, y)
+      pdf.setFont('helvetica', 'normal')
+      pdf.text(val || '___________', 52, y)
+      y += 5
+    })
+    y += 4
+
+    // ── TABLEAU ───────────────────────────────────────────────
+    const col = { desig: 10, qty: 130, pu: 155, montant: 200 }
+    const rowH = 8
+
+    // Header tableau
+    pdf.setFillColor(...blue)
+    pdf.rect(10, y, 190, rowH, 'F')
+    pdf.setTextColor(...white)
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(9)
+    pdf.text('DÉSIGNATION', col.desig + 3, y + 5.5)
+    pdf.text('QTY', col.qty + 8, y + 5.5, { align: 'center' })
+    pdf.text('P.U (FCFA)', col.pu + 10, y + 5.5, { align: 'center' })
+    pdf.text('MONTANT (FCFA)', col.montant, y + 5.5, { align: 'right' })
+    y += rowH
+
+    // Lignes
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(9)
+    proforma.items.forEach((item, i) => {
+      if (i % 2 !== 0) {
+        pdf.setFillColor(...lightGray)
+        pdf.rect(10, y, 190, rowH, 'F')
+      }
+      pdf.setTextColor(40, 40, 40)
+      // Désignation - tronquer si trop long
+      const desig = item.designation?.length > 55 ? item.designation.substring(0, 52) + '...' : (item.designation || '')
+      pdf.text(desig, col.desig + 3, y + 5.5)
+      pdf.text(String(item.qty), col.qty + 8, y + 5.5, { align: 'center' })
+      pdf.text(Number(item.pu).toLocaleString('fr-FR'), col.pu + 10, y + 5.5, { align: 'center' })
+      pdf.text(Number(item.montant).toLocaleString('fr-FR'), col.montant, y + 5.5, { align: 'right' })
+      y += rowH
+    })
+    y += 6
+
+    // ── TOTAUX ────────────────────────────────────────────────
+    const totaux = [
+      [`TOTAL HT :`, Number(proforma.total_ht).toLocaleString('fr-FR') + ' FCFA'],
+      [`TOTAL APRÈS REMISE :`, Number(proforma.total_apres_remise).toLocaleString('fr-FR') + ' FCFA'],
+      [`TVA (${proforma.tva_rate}%) :`, Number(proforma.tva_amount).toLocaleString('fr-FR') + ' FCFA'],
+    ]
+    pdf.setFontSize(9)
+    totaux.forEach(([label, val]) => {
+      pdf.setTextColor(...darkGray)
+      pdf.setFont('helvetica', 'normal')
+      pdf.text(label, 125, y)
+      pdf.setTextColor(30, 30, 30)
+      pdf.setFont('helvetica', 'bold')
+      pdf.text(val, W - 10, y, { align: 'right' })
+      y += 6
+    })
+
+    // Total TTC
+    pdf.setFillColor(...blue)
+    pdf.rect(120, y - 2, 80, 9, 'F')
+    pdf.setTextColor(...white)
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(10)
+    pdf.text('TOTAL TTC :', 125, y + 4.5)
+    pdf.text(Number(proforma.total_ttc).toLocaleString('fr-FR') + ' FCFA', W - 10, y + 4.5, { align: 'right' })
+    y += 14
+
+    // ── MODALITÉS ─────────────────────────────────────────────
+    pdf.setTextColor(...blue)
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(9)
+    pdf.text('MODALITÉS DE PAIEMENT', 10, y)
+    y += 5
+    pdf.setTextColor(50, 50, 50)
+    pdf.setFont('helvetica', 'normal')
+    ;(proforma.payment_terms || '').split('\n').forEach(line => {
+      pdf.text('• ' + line, 10, y)
+      y += 5
+    })
+
+    // ── SIGNATURE ─────────────────────────────────────────────
+    if (signImg) {
+      const sigH = 25
+      const sigW = (signImg.w * sigH) / signImg.h
+      const sigX = W - 10 - sigW
+      // "Signature autorisée" au dessus
+      pdf.setTextColor(...darkGray)
+      pdf.setFont('helvetica', 'normal')
+      pdf.setFontSize(8)
+      pdf.text('Signature autorisée', W - 10 - sigW / 2, 252, { align: 'center' })
+      pdf.addImage(signImg.data, 'PNG', sigX, 255, sigW, sigH)
+    }
+
+    // ── MENTION LÉGALE ────────────────────────────────────────
+    pdf.setTextColor(160, 160, 160)
+    pdf.setFont('helvetica', 'italic')
+    pdf.setFontSize(7.5)
+    pdf.text(
+      "Cette facture pro forma est émise à titre informatif et ne constitue pas une facture définitive.",
+      W / 2, 282, { align: 'center' }
+    )
+
+    // ── FOOTER ────────────────────────────────────────────────
+    pdf.setFillColor(...blue)
+    pdf.rect(0, 285, W, 12, 'F')
+    pdf.setTextColor(...white)
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(8)
+    pdf.text(settings?.website || settings?.company_name || '', 10, 292)
+    pdf.text(settings?.phone || '', W / 2, 292, { align: 'center' })
+    pdf.text(settings?.email || '', W - 10, 292, { align: 'right' })
+
+    // ── SAVE ──────────────────────────────────────────────────
+    const entreprise = (settings?.company_name || 'GBEFFA').replace(/\s+/g, '_')
+    const client = (proforma.client_name || 'Client').replace(/\s+/g, '_')
+    pdf.save(`${entreprise}_${client}_${proforma.numero}.pdf`)
   }
 
   if (loading) return (
