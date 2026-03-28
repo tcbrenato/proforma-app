@@ -354,13 +354,20 @@ export default function ViewProforma() {
       {/* APERCU PROFORMA */}
       {!editMode && (
         <div className="max-w-4xl mx-auto px-4 pb-10">
-          <div ref={printRef} id="proforma-print" className="bg-white shadow-lg" style={{ 
-  fontFamily: 'Arial, sans-serif', 
-  fontSize: '13px',
-  minHeight: '297mm',
-  display: 'flex',
-  flexDirection: 'column',
-}}>
+          <div
+  ref={printRef}
+  id="proforma-print"
+  className="bg-white shadow-lg"
+  style={{
+    fontFamily: 'Arial, sans-serif',
+    fontSize: '13px',
+    minHeight: '297mm',
+    width: '210mm',        // forcer largeur A4
+    margin: '0 auto',      // centrer sur desktop
+    display: 'flex',
+    flexDirection: 'column',
+  }}
+>
 
             {/* En-tête */}
             <div className="flex items-start justify-between px-8 pt-8 pb-4">
@@ -486,16 +493,42 @@ export default function ViewProforma() {
           * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
           body * { visibility: hidden; }
           #proforma-print, #proforma-print * { visibility: visible; }
+          @page { margin: 0; size: A4 portrait; }
+
           #proforma-print {
             position: fixed;
             top: 0;
             left: 0;
-            width: 100%;
-            margin: 0;
-            padding: 0;
-            box-shadow: none;
+            width: 210mm !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            box-shadow: none !important;
+            font-size: 13px !important;
           }
-          @page { margin: 0; size: A4; }
+
+          /* Fixes mobile */
+          #proforma-print h1 {
+            font-size: 22px !important;
+            white-space: nowrap !important;
+          }
+          #proforma-print table {
+            font-size: 10px !important;
+          }
+          #proforma-print table th,
+          #proforma-print table td {
+            padding: 4px 6px !important;
+          }
+          #proforma-print .w-72 {
+            width: 100% !important;
+          }
+          #proforma-print .flex.flex-col.items-end {
+            align-items: stretch !important;
+            padding: 0 16px !important;
+          }
+          #proforma-print .flex.justify-between {
+            display: flex !important;
+            justify-content: space-between !important;
+          }
         }
       `}</style>
     </div>
