@@ -185,9 +185,9 @@ export default function ViewProforma() {
     // ── TABLEAU ───────────────────────────────────────────────
     const TW = W - ML - MR  // largeur tableau = 186mm
     const cDesig = ML
-    const cQty   = ML + TW * 0.52
-    const cPu    = ML + TW * 0.65
-    const cMnt   = ML + TW * 0.85
+    const cQty   = ML + TW * 0.50
+    const cPu    = ML + TW * 0.68
+    const cMnt   = RX
     const rH = 7
 
     // Header
@@ -199,7 +199,7 @@ export default function ViewProforma() {
     pdf.text('DÉSIGNATION', cDesig + 2, y + 4.8)
     pdf.text('QTY', cQty, y + 4.8, { align: 'center' })
     pdf.text('P.U (FCFA)', cPu, y + 4.8, { align: 'center' })
-    pdf.text('MONTANT (FCFA)', cMnt, y + 4.8, { align: 'center' })
+    pdf.text('MONTANT (FCFA)', cMnt, y + 4.8, { align: 'right' })
     y += rH
 
     // Lignes items
@@ -215,7 +215,7 @@ export default function ViewProforma() {
       pdf.text(d, cDesig + 2, y + 4.8)
       pdf.text(String(item.qty), cQty, y + 4.8, { align: 'center' })
       pdf.text(Number(item.pu).toLocaleString('fr-FR'), cPu, y + 4.8, { align: 'center' })
-      pdf.text(Number(item.montant).toLocaleString('fr-FR'), cMnt, y + 4.8, { align: 'center' })
+      pdf.text(Number(item.montant).toLocaleString('fr-FR'), cMnt, y + 4.8, { align: 'right' })
       y += rH
     })
     y += 6
@@ -234,7 +234,7 @@ export default function ViewProforma() {
       pdf.text(label, LX, y)
       pdf.setTextColor(30, 30, 30)
       pdf.setFont('helvetica', 'bold')
-      pdf.text(val, cMnt, y, { align: 'center' })
+      pdf.text(val, cMnt, y, { align: 'right' })
       y += 6
     })
 
@@ -245,7 +245,7 @@ export default function ViewProforma() {
     pdf.setFont('helvetica', 'bold')
     pdf.setFontSize(9)
     pdf.text('TOTAL TTC :', LX, y + 4.5)
-    pdf.text(Number(proforma.total_ttc).toLocaleString('fr-FR') + ' FCFA', cMnt, y + 4.5, { align: 'center' })
+    pdf.text(Number(proforma.total_ttc).toLocaleString('fr-FR') + ' FCFA', cMnt, y + 4.5, { align: 'right' })
     y += 14
 
     // ── MODALITÉS ─────────────────────────────────────────────
