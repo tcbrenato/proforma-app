@@ -166,7 +166,7 @@ export default function NewProforma() {
         <div className="bg-white rounded-xl shadow p-4 mb-4">
           <h2 className="font-semibold text-[#1a3a5c] mb-3">Prestations</h2>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm min-w-[500px]">
               <thead>
                 <tr className="bg-[#1a3a5c] text-white">
                   <th className="px-3 py-2 text-left rounded-tl-lg">Désignation</th>
