@@ -185,8 +185,8 @@ export default function ViewProforma() {
     // ── TABLEAU ───────────────────────────────────────────────
     const TW = W - ML - MR  // largeur tableau = 186mm
     const cDesig = ML
-    const cQty   = ML + TW * 0.58
-    const cPu    = ML + TW * 0.72
+    const cQty   = ML + TW * 0.55
+    const cPu    = ML + TW * 0.68
     const cMnt   = RX
     const rH = 7
 
@@ -197,9 +197,9 @@ export default function ViewProforma() {
     pdf.setFont('helvetica', 'bold')
     pdf.setFontSize(8)
     pdf.text('DÉSIGNATION', cDesig + 2, y + 4.8)
-    pdf.text('QTY', cQty + 6, y + 4.8, { align: 'center' })
-    pdf.text('P.U', cPu + 8, y + 4.8, { align: 'center' })
-    pdf.text('MONTANT (FCFA)', cMnt, y + 4.8, { align: 'right' })
+    pdf.text('QTY', cQty, y + 4.8, { align: 'center' })
+    pdf.text('P.U (FCFA)', cPu + 6, y + 4.8, { align: 'center' })
+    pdf.text('MONTANT', cMnt, y + 4.8, { align: 'right' })
     y += rH
 
     // Lignes items
@@ -213,8 +213,8 @@ export default function ViewProforma() {
       pdf.setTextColor(40, 40, 40)
       const d = (item.designation || '').substring(0, 50)
       pdf.text(d, cDesig + 2, y + 4.8)
-      pdf.text(String(item.qty), cQty + 6, y + 4.8, { align: 'center' })
-      pdf.text(Number(item.pu).toLocaleString('fr-FR'), cPu + 8, y + 4.8, { align: 'center' })
+      pdf.text(String(item.qty), cQty, y + 4.8, { align: 'center' })
+      pdf.text(Number(item.pu).toLocaleString('fr-FR'), cPu + 6, y + 4.8, { align: 'center' })
       pdf.text(Number(item.montant).toLocaleString('fr-FR'), cMnt, y + 4.8, { align: 'right' })
       y += rH
     })
