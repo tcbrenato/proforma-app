@@ -94,33 +94,210 @@ export default function ViewProforma() {
   }
 
   async function exportPDF() {
-    const pdf = new jsPDF('p', 'mm', 'a4')
-    const W = 210
+    const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' })
+    const W = pdf.internal.pageSize.getWidth()   // exactement 210
+    const H = pdf.internal.pageSize.getHeight()  // exactement 297
+    const ML = 12  // marge gauche
+    const MR = 12  // marge droite
+    const RX = W - MR // bord droit
+
     const blue = [26, 58, 92]
     const white = [255, 255, 255]
     const lightGray = [248, 248, 248]
-    const darkGray = [80, 80, 80]
-    let y = 0
+    const gray = [100, 100, 100]
+    let y = 12
 
-    // ── Charger les images ────────────────────────────────────
-    const loadImage = (url) => new Promise((resolve) => {
+    // ── Charger images ────────────────────────────────────────
+    const loadImg = (url) => new Promise((resolve) => {
       const img = new Image()
       img.crossOrigin = 'anonymous'
       img.onload = () => {
-        const canvas = document.createElement('canvas')
-        canvas.width = img.width
-        canvas.height = img.height
-        canvas.getContext('2d').drawImage(img, 0, 0)
-        resolve({ data: canvas.toDataURL('image/png'), w: img.width, h: img.height })
+        const c = document.createElement('canvas')
+        c.width = img.width; c.height = img.height
+        c.getContext('2d').drawImage(img, 0, 0)
+        resolve({ data: c.toDataURL('image/png'), w: img.width, h: img.height })
       }
       img.onerror = () => resolve(null)
       img.src = url
     })
 
     const [logoImg, signImg] = await Promise.all([
-      settings?.logo_url ? loadImage(settings.logo_url) : Promise.resolve(null),
-      settings?.signature_url ? loadImage(settings.signature_url) : Promise.resolve(null),
+      settings?.logo_url ? loadImg(settings.logo_url) : Promise.resolve(null),
+      settings?.signature_url ? loadImg(settings.signature_url) : Promise.resolve(null),
     ])
+
+    // ── LOGO + TITRE ──────────────────────────────────────────
+    if (logoImg) {
+      const lh = 16
+      const lw = Math.min((logoImg.w * lh) / logoImg.h, 45)
+      pdf.addImage(logoImg.data, 'PNG', ML, y, lw, lh)
+    } else {
+      pdf.setTextColor(...blue)
+      pdf.setFont('helvetica', 'bold')
+      pdf.setFontSize(10)
+      pdf.text(settings?.company_name || '', ML, y + 8)
+    }
+
+    pdf.setTextColor(...blue)
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(22)
+    pdf.text('PRO FORMA', RX, y + 8, { align: 'right' })
+
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(8.5)
+    pdf.setTextColor(...gray)
+    pdf.text(`Numéro : ${proforma.numero}`, RX, y + 14, { align: 'right' })
+    pdf.text(`Date : ${new Date(proforma.date).toLocaleDateString('fr-FR')}`, RX, y + 19, { align: 'right' })
+    pdf.text(`Validité : ${settings?.validity_days || 15} jours`, RX, y + 24, { align: 'right' })
+    pdf.text(`IFU : ${settings?.ifu || ''}`, RX, y + 29, { align: 'right' })
+    y += 34
+
+    // Séparateur
+    pdf.setDrawColor(200, 200, 200)
+    pdf.line(ML, y, RX, y)
+    y += 7
+
+    // ── CLIENT ────────────────────────────────────────────────
+    pdf.setTextColor(...blue)
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(8.5)
+    pdf.text('PAYABLE TO', ML, y)
+    y += 5
+
+    pdf.setFontSize(8.5)
+    const clientFields = [
+      ['Nom / Raison sociale', proforma.client_name],
+      ['Adresse', proforma.client_address],
+      ['Téléphone', proforma.client_phone],
+      ['Email', proforma.client_email],
+    ]
+    clientFields.forEach(([label, val]) => {
+      pdf.setTextColor(...gray)
+      pdf.setFont('helvetica', 'bold')
+      pdf.text(`${label} :`, ML, y)
+      pdf.setFont('helvetica', 'normal')
+      pdf.setTextColor(40, 40, 40)
+      pdf.text(val || '___________', ML + 38, y)
+      y += 5
+    })
+    y += 5
+
+    // ── TABLEAU ───────────────────────────────────────────────
+    const TW = W - ML - MR  // largeur tableau = 186mm
+    const cDesig = ML
+    const cQty   = ML + TW * 0.58
+    const cPu    = ML + TW * 0.72
+    const cMnt   = RX
+    const rH = 7
+
+    // Header
+    pdf.setFillColor(...blue)
+    pdf.rect(ML, y, TW, rH, 'F')
+    pdf.setTextColor(...white)
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(8)
+    pdf.text('DÉSIGNATION', cDesig + 2, y + 4.8)
+    pdf.text('QTY', cQty + 6, y + 4.8, { align: 'center' })
+    pdf.text('P.U', cPu + 8, y + 4.8, { align: 'center' })
+    pdf.text('MONTANT (FCFA)', cMnt, y + 4.8, { align: 'right' })
+    y += rH
+
+    // Lignes items
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(8.5)
+    proforma.items.forEach((item, i) => {
+      if (i % 2 !== 0) {
+        pdf.setFillColor(...lightGray)
+        pdf.rect(ML, y, TW, rH, 'F')
+      }
+      pdf.setTextColor(40, 40, 40)
+      const d = (item.designation || '').substring(0, 50)
+      pdf.text(d, cDesig + 2, y + 4.8)
+      pdf.text(String(item.qty), cQty + 6, y + 4.8, { align: 'center' })
+      pdf.text(Number(item.pu).toLocaleString('fr-FR'), cPu + 8, y + 4.8, { align: 'center' })
+      pdf.text(Number(item.montant).toLocaleString('fr-FR'), cMnt, y + 4.8, { align: 'right' })
+      y += rH
+    })
+    y += 6
+
+    // ── TOTAUX ────────────────────────────────────────────────
+    const totaux = [
+      [`TOTAL HT :`, Number(proforma.total_ht).toLocaleString('fr-FR') + ' FCFA'],
+      [`TOTAL APRÈS REMISE :`, Number(proforma.total_apres_remise).toLocaleString('fr-FR') + ' FCFA'],
+      [`TVA (${proforma.tva_rate}%) :`, Number(proforma.tva_amount).toLocaleString('fr-FR') + ' FCFA'],
+    ]
+    const LX = W / 2 + 10  // colonne gauche des totaux
+    pdf.setFontSize(8.5)
+    totaux.forEach(([label, val]) => {
+      pdf.setTextColor(...gray)
+      pdf.setFont('helvetica', 'normal')
+      pdf.text(label, LX, y)
+      pdf.setTextColor(30, 30, 30)
+      pdf.setFont('helvetica', 'bold')
+      pdf.text(val, RX, y, { align: 'right' })
+      y += 6
+    })
+
+    // Total TTC
+    pdf.setFillColor(...blue)
+    pdf.rect(LX - 3, y - 2, RX - LX + 3 + MR, 9, 'F')
+    pdf.setTextColor(...white)
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(9)
+    pdf.text('TOTAL TTC :', LX, y + 4.5)
+    pdf.text(Number(proforma.total_ttc).toLocaleString('fr-FR') + ' FCFA', RX, y + 4.5, { align: 'right' })
+    y += 14
+
+    // ── MODALITÉS ─────────────────────────────────────────────
+    pdf.setTextColor(...blue)
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(8.5)
+    pdf.text('MODALITÉS DE PAIEMENT', ML, y)
+    y += 5
+    pdf.setTextColor(50, 50, 50)
+    pdf.setFont('helvetica', 'normal')
+    ;(proforma.payment_terms || '').split('\n').forEach(line => {
+      pdf.text('• ' + line, ML, y)
+      y += 5
+    })
+
+    // ── SIGNATURE ─────────────────────────────────────────────
+    if (signImg) {
+      const sH = 22
+      const sW = Math.min((signImg.w * sH) / signImg.h, 40)
+      const sX = RX - sW
+      const sY = H - 45
+      pdf.setTextColor(...gray)
+      pdf.setFont('helvetica', 'normal')
+      pdf.setFontSize(7.5)
+      pdf.text('Signature autorisée', sX + sW / 2, sY - 3, { align: 'center' })
+      pdf.addImage(signImg.data, 'PNG', sX, sY, sW, sH)
+    }
+
+    // ── MENTION LÉGALE ────────────────────────────────────────
+    pdf.setTextColor(160, 160, 160)
+    pdf.setFont('helvetica', 'italic')
+    pdf.setFontSize(7)
+    pdf.text(
+      'Cette facture pro forma est émise à titre informatif et ne constitue pas une facture définitive.',
+      W / 2, H - 16, { align: 'center' }
+    )
+
+    // ── FOOTER ────────────────────────────────────────────────
+    pdf.setFillColor(...blue)
+    pdf.rect(0, H - 12, W, 12, 'F')
+    pdf.setTextColor(...white)
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(7.5)
+    pdf.text(settings?.website || settings?.company_name || '', ML, H - 5)
+    pdf.text(settings?.phone || '', W / 2, H - 5, { align: 'center' })
+    pdf.text(settings?.email || '', RX, H - 5, { align: 'right' })
+
+    // ── SAVE ──────────────────────────────────────────────────
+    const entreprise = (settings?.company_name || 'GBEFFA').replace(/\s+/g, '_')
+    const client = (proforma.client_name || 'Client').replace(/\s+/g, '_')
+    pdf.save(`${entreprise}_${client}_${proforma.numero}.pdf`)
+  }
 
     // ── EN-TÊTE ───────────────────────────────────────────────
     // Logo
