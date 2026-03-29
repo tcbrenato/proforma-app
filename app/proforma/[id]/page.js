@@ -6,6 +6,8 @@ import { supabase } from '@/lib/supabase'
 import { Download, ArrowLeft, Printer, Edit, Save, X, PlusCircle, Trash2 } from 'lucide-react'
 import jsPDF from 'jspdf'
 
+const fmt = (n) => Number(n).toLocaleString('fr-FR').replace(/\u202f|\u00a0|\s/g, ' ')
+
 export default function ViewProforma() {
   const { id } = useParams()
   const router = useRouter()
@@ -116,7 +118,7 @@ export default function ViewProforma() {
     const logoImg = settings?.logo_url ? await loadImg(settings.logo_url) : null
     const signImg = settings?.signature_url ? await loadImg(settings.signature_url) : null
 
-    // ── LOGO ──
+    // LOGO
     if (logoImg) {
       const lh = 18
       const lw = Math.min((logoImg.w * lh) / logoImg.h, 50)
@@ -128,7 +130,7 @@ export default function ViewProforma() {
       pdf.text(settings?.company_name || '', ML, y + 8)
     }
 
-    // ── TITRE ──
+    // TITRE
     pdf.setTextColor(...blue)
     pdf.setFont('helvetica', 'bold')
     pdf.setFontSize(22)
@@ -142,12 +144,12 @@ export default function ViewProforma() {
     pdf.text(`IFU : ${settings?.ifu || ''}`, RX, y + 29, { align: 'right' })
     y += 36
 
-    // ── SÉPARATEUR ──
+    // SÉPARATEUR
     pdf.setDrawColor(200, 200, 200)
     pdf.line(ML, y, RX, y)
     y += 7
 
-    // ── CLIENT ──
+    // CLIENT
     pdf.setTextColor(...blue)
     pdf.setFont('helvetica', 'bold')
     pdf.setFontSize(9)
@@ -156,7 +158,7 @@ export default function ViewProforma() {
     const clientFields = [
       ['Nom / Raison sociale', proforma.client_name],
       ['Adresse', proforma.client_address],
-      ['Téléphone', proforma.client_phone],
+      ['Telephone', proforma.client_phone],
       ['Email', proforma.client_email],
     ]
     clientFields.forEach(([label, val]) => {
@@ -171,29 +173,27 @@ export default function ViewProforma() {
     })
     y += 5
 
-    // ── TABLEAU ──
+    // TABLEAU
     const TW = W - ML - MR
     const rH = 7
+    const cDesigX = ML + 2
+    const cQtyX   = ML + 110
+    const cPuX    = ML + 142
+    const cMntX   = RX
 
-    // Colonnes avec positions fixes en mm
-    const cDesigX = ML + 2      // Désignation : début gauche
-    const cQtyX   = ML + 110    // QTY : centré à 110mm
-    const cPuX    = ML + 142    // P.U : centré à 142mm
-    const cMntX   = RX          // MONTANT : aligné à droite
-
-    // Header tableau
+    // Header
     pdf.setFillColor(...blue)
     pdf.rect(ML, y, TW, rH, 'F')
     pdf.setTextColor(...white)
     pdf.setFont('helvetica', 'bold')
     pdf.setFontSize(8)
-    pdf.text('DÉSIGNATION', cDesigX, y + 4.8)
+    pdf.text('DESIGNATION', cDesigX, y + 4.8)
     pdf.text('QTY', cQtyX, y + 4.8, { align: 'center' })
     pdf.text('P.U (FCFA)', cPuX, y + 4.8, { align: 'center' })
-    pdf.text('MONTANT', cMntX, y + 4.8, { align: 'right' })
+    pdf.text('MONTANT (FCFA)', cMntX, y + 4.8, { align: 'right' })
     y += rH
 
-    // Lignes items
+    // Lignes
     pdf.setFont('helvetica', 'normal')
     pdf.setFontSize(8.5)
     proforma.items.forEach((item, i) => {
@@ -204,19 +204,19 @@ export default function ViewProforma() {
       pdf.setTextColor(40, 40, 40)
       pdf.text((item.designation || '').substring(0, 52), cDesigX, y + 4.8)
       pdf.text(String(item.qty), cQtyX, y + 4.8, { align: 'center' })
-      pdf.text(Number(item.pu).toLocaleString('fr-FR'), cPuX, y + 4.8, { align: 'center' })
-      pdf.text(Number(item.montant).toLocaleString('fr-FR') + ' FCFA', cMntX, y + 4.8, { align: 'right' })
+      pdf.text(fmt(item.pu), cPuX, y + 4.8, { align: 'center' })
+      pdf.text(fmt(item.montant) + ' FCFA', cMntX, y + 4.8, { align: 'right' })
       y += rH
     })
     y += 8
 
-    // ── TOTAUX ──
+    // TOTAUX
     const LX = W / 2 + 15
     pdf.setFontSize(8.5)
     const totaux = [
-      ['TOTAL HT :', Number(proforma.total_ht).toLocaleString('fr-FR') + ' FCFA'],
-      ['TOTAL APRÈS REMISE :', Number(proforma.total_apres_remise).toLocaleString('fr-FR') + ' FCFA'],
-      [`TVA (${proforma.tva_rate}%) :`, Number(proforma.tva_amount).toLocaleString('fr-FR') + ' FCFA'],
+      ['TOTAL HT :', fmt(proforma.total_ht) + ' FCFA'],
+      ['TOTAL APRES REMISE :', fmt(proforma.total_apres_remise) + ' FCFA'],
+      [`TVA (${proforma.tva_rate}%) :`, fmt(proforma.tva_amount) + ' FCFA'],
     ]
     totaux.forEach(([label, val]) => {
       pdf.setTextColor(...gray)
@@ -235,14 +235,14 @@ export default function ViewProforma() {
     pdf.setFont('helvetica', 'bold')
     pdf.setFontSize(9)
     pdf.text('TOTAL TTC :', LX, y + 4.5)
-    pdf.text(Number(proforma.total_ttc).toLocaleString('fr-FR') + ' FCFA', cMntX, y + 4.5, { align: 'right' })
+    pdf.text(fmt(proforma.total_ttc) + ' FCFA', cMntX, y + 4.5, { align: 'right' })
     y += 14
 
-    // ── MODALITÉS ──
+    // MODALITÉS
     pdf.setTextColor(...blue)
     pdf.setFont('helvetica', 'bold')
     pdf.setFontSize(8.5)
-    pdf.text('MODALITÉS DE PAIEMENT', ML, y)
+    pdf.text('MODALITES DE PAIEMENT', ML, y)
     y += 5
     pdf.setTextColor(50, 50, 50)
     pdf.setFont('helvetica', 'normal')
@@ -251,7 +251,7 @@ export default function ViewProforma() {
       y += 5
     })
 
-    // ── SIGNATURE ──
+    // SIGNATURE
     if (signImg) {
       const sH = 22
       const sW = Math.min((signImg.w * sH) / signImg.h, 40)
@@ -260,20 +260,20 @@ export default function ViewProforma() {
       pdf.setTextColor(...gray)
       pdf.setFont('helvetica', 'normal')
       pdf.setFontSize(7.5)
-      pdf.text('Signature autorisée', sX + sW / 2, sY - 3, { align: 'center' })
+      pdf.text('Signature autorisee', sX + sW / 2, sY - 3, { align: 'center' })
       pdf.addImage(signImg.data, 'PNG', sX, sY, sW, sH)
     }
 
-    // ── MENTION LÉGALE ──
+    // MENTION LÉGALE
     pdf.setTextColor(160, 160, 160)
     pdf.setFont('helvetica', 'italic')
     pdf.setFontSize(7)
     pdf.text(
-      'Cette facture pro forma est émise à titre informatif et ne constitue pas une facture définitive.',
+      'Cette facture pro forma est emise a titre informatif et ne constitue pas une facture definitive.',
       W / 2, H - 16, { align: 'center' }
     )
 
-    // ── FOOTER ──
+    // FOOTER
     pdf.setFillColor(...blue)
     pdf.rect(0, H - 12, W, 12, 'F')
     pdf.setTextColor(...white)
@@ -283,7 +283,7 @@ export default function ViewProforma() {
     pdf.text(settings?.phone || '', W / 2, H - 5, { align: 'center' })
     pdf.text(settings?.email || '', RX, H - 5, { align: 'right' })
 
-    // ── NOM FICHIER ──
+    // NOM FICHIER
     const entreprise = (settings?.company_name || 'GBEFFA').replace(/\s+/g, '_')
     const client = (proforma.client_name || 'Client').replace(/\s+/g, '_')
     pdf.save(`${entreprise}_${client}_${proforma.numero}.pdf`)
