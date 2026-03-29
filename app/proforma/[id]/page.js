@@ -9,7 +9,6 @@ import jsPDF from 'jspdf'
 export default function ViewProforma() {
   const { id } = useParams()
   const router = useRouter()
-  const printRef = useRef()
   const [proforma, setProforma] = useState(null)
   const [settings, setSettings] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -18,9 +17,7 @@ export default function ViewProforma() {
   const [tvaActive, setTvaActive] = useState(true)
   const [form, setForm] = useState(null)
 
-  useEffect(() => {
-    fetchData()
-  }, [])
+  useEffect(() => { fetchData() }, [])
 
   async function fetchData() {
     const [{ data: p }, { data: s }] = await Promise.all([
@@ -46,15 +43,11 @@ export default function ViewProforma() {
   }
 
   function addItem() {
-    setForm({
-      ...form,
-      items: [...form.items, { designation: '', qty: 1, pu: 0, montant: 0 }],
-    })
+    setForm({ ...form, items: [...form.items, { designation: '', qty: 1, pu: 0, montant: 0 }] })
   }
 
   function removeItem(index) {
-    const items = form.items.filter((_, i) => i !== index)
-    setForm({ ...form, items })
+    setForm({ ...form, items: form.items.filter((_, i) => i !== index) })
   }
 
   const totalHT = form ? form.items.reduce((sum, i) => sum + Number(i.montant), 0) : 0
@@ -95,19 +88,17 @@ export default function ViewProforma() {
 
   async function exportPDF() {
     const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' })
-    const W = pdf.internal.pageSize.getWidth()   // exactement 210
-    const H = pdf.internal.pageSize.getHeight()  // exactement 297
-    const ML = 12  // marge gauche
-    const MR = 12  // marge droite
-    const RX = W - MR // bord droit
-
+    const W = 210
+    const H = 297
+    const ML = 12
+    const MR = 12
+    const RX = W - MR
     const blue = [26, 58, 92]
     const white = [255, 255, 255]
     const lightGray = [248, 248, 248]
     const gray = [100, 100, 100]
     let y = 12
 
-    // ── Charger images ────────────────────────────────────────
     const loadImg = (url) => new Promise((resolve) => {
       const img = new Image()
       img.crossOrigin = 'anonymous'
@@ -121,15 +112,12 @@ export default function ViewProforma() {
       img.src = url
     })
 
-    const [logoImg, signImg] = await Promise.all([
-      settings?.logo_url ? loadImg(settings.logo_url) : Promise.resolve(null),
-      settings?.signature_url ? loadImg(settings.signature_url) : Promise.resolve(null),
-    ])
+    const logoImg = settings?.logo_url ? await loadImg(settings.logo_url) : null
 
-    // ── LOGO + TITRE ──────────────────────────────────────────
+    // LOGO
     if (logoImg) {
-      const lh = 16
-      const lw = Math.min((logoImg.w * lh) / logoImg.h, 45)
+      const lh = 18
+      const lw = Math.min((logoImg.w * lh) / logoImg.h, 50)
       pdf.addImage(logoImg.data, 'PNG', ML, y, lw, lh)
     } else {
       pdf.setTextColor(...blue)
@@ -138,11 +126,11 @@ export default function ViewProforma() {
       pdf.text(settings?.company_name || '', ML, y + 8)
     }
 
+    // TITRE
     pdf.setTextColor(...blue)
     pdf.setFont('helvetica', 'bold')
     pdf.setFontSize(22)
     pdf.text('PRO FORMA', RX, y + 8, { align: 'right' })
-
     pdf.setFont('helvetica', 'normal')
     pdf.setFontSize(8.5)
     pdf.setTextColor(...gray)
@@ -150,21 +138,19 @@ export default function ViewProforma() {
     pdf.text(`Date : ${new Date(proforma.date).toLocaleDateString('fr-FR')}`, RX, y + 19, { align: 'right' })
     pdf.text(`Validité : ${settings?.validity_days || 15} jours`, RX, y + 24, { align: 'right' })
     pdf.text(`IFU : ${settings?.ifu || ''}`, RX, y + 29, { align: 'right' })
-    y += 34
+    y += 36
 
-    // Séparateur
+    // SÉPARATEUR
     pdf.setDrawColor(200, 200, 200)
     pdf.line(ML, y, RX, y)
     y += 7
 
-    // ── CLIENT ────────────────────────────────────────────────
+    // CLIENT
     pdf.setTextColor(...blue)
     pdf.setFont('helvetica', 'bold')
-    pdf.setFontSize(8.5)
+    pdf.setFontSize(9)
     pdf.text('PAYABLE TO', ML, y)
     y += 5
-
-    pdf.setFontSize(8.5)
     const clientFields = [
       ['Nom / Raison sociale', proforma.client_name],
       ['Adresse', proforma.client_address],
@@ -174,21 +160,23 @@ export default function ViewProforma() {
     clientFields.forEach(([label, val]) => {
       pdf.setTextColor(...gray)
       pdf.setFont('helvetica', 'bold')
+      pdf.setFontSize(8.5)
       pdf.text(`${label} :`, ML, y)
       pdf.setFont('helvetica', 'normal')
       pdf.setTextColor(40, 40, 40)
-      pdf.text(val || '___________', ML + 38, y)
+      pdf.text(val || '___________', ML + 40, y)
       y += 5
     })
     y += 5
 
-    // ── TABLEAU ───────────────────────────────────────────────
-    const TW = W - ML - MR  // largeur tableau = 186mm
-    const cDesig = ML
-    const cQty   = ML + TW * 0.50
-    const cPu    = ML + TW * 0.68
-    const cMnt   = RX
+    // TABLEAU
+    const TW = W - ML - MR
     const rH = 7
+    // Positions des colonnes
+    const cDesigX = ML + 2
+    const cQtyX   = ML + TW * 0.56
+    const cPuX    = ML + TW * 0.72
+    const cMntX   = RX
 
     // Header
     pdf.setFillColor(...blue)
@@ -196,13 +184,13 @@ export default function ViewProforma() {
     pdf.setTextColor(...white)
     pdf.setFont('helvetica', 'bold')
     pdf.setFontSize(8)
-    pdf.text('DÉSIGNATION', cDesig + 2, y + 4.8)
-    pdf.text('QTY', cQty, y + 4.8, { align: 'center' })
-    pdf.text('P.U (FCFA)', cPu, y + 4.8, { align: 'center' })
-    pdf.text('MONTANT (FCFA)', cMnt, y + 4.8, { align: 'right' })
+    pdf.text('DÉSIGNATION', cDesigX, y + 4.8)
+    pdf.text('QTY', cQtyX, y + 4.8, { align: 'center' })
+    pdf.text('P.U (FCFA)', cPuX, y + 4.8, { align: 'center' })
+    pdf.text('MONTANT (FCFA)', cMntX, y + 4.8, { align: 'right' })
     y += rH
 
-    // Lignes items
+    // Lignes
     pdf.setFont('helvetica', 'normal')
     pdf.setFontSize(8.5)
     proforma.items.forEach((item, i) => {
@@ -211,30 +199,29 @@ export default function ViewProforma() {
         pdf.rect(ML, y, TW, rH, 'F')
       }
       pdf.setTextColor(40, 40, 40)
-      const d = (item.designation || '').substring(0, 50)
-      pdf.text(d, cDesig + 2, y + 4.8)
-      pdf.text(String(item.qty), cQty, y + 4.8, { align: 'center' })
-      pdf.text(Number(item.pu).toLocaleString('fr-FR'), cPu, y + 4.8, { align: 'center' })
-      pdf.text(Number(item.montant).toLocaleString('fr-FR'), cMnt, y + 4.8, { align: 'right' })
+      pdf.text((item.designation || '').substring(0, 50), cDesigX, y + 4.8)
+      pdf.text(String(item.qty), cQtyX, y + 4.8, { align: 'center' })
+      pdf.text(Number(item.pu).toLocaleString('fr-FR'), cPuX, y + 4.8, { align: 'center' })
+      pdf.text(Number(item.montant).toLocaleString('fr-FR'), cMntX, y + 4.8, { align: 'right' })
       y += rH
     })
-    y += 6
+    y += 8
 
-    // ── TOTAUX ────────────────────────────────────────────────
+    // TOTAUX
+    const LX = W / 2 + 15
+    pdf.setFontSize(8.5)
     const totaux = [
       [`TOTAL HT :`, Number(proforma.total_ht).toLocaleString('fr-FR') + ' FCFA'],
       [`TOTAL APRÈS REMISE :`, Number(proforma.total_apres_remise).toLocaleString('fr-FR') + ' FCFA'],
       [`TVA (${proforma.tva_rate}%) :`, Number(proforma.tva_amount).toLocaleString('fr-FR') + ' FCFA'],
     ]
-    const LX = W / 2 + 10  // colonne gauche des totaux
-    pdf.setFontSize(8.5)
     totaux.forEach(([label, val]) => {
       pdf.setTextColor(...gray)
       pdf.setFont('helvetica', 'normal')
       pdf.text(label, LX, y)
       pdf.setTextColor(30, 30, 30)
       pdf.setFont('helvetica', 'bold')
-      pdf.text(val, cMnt, y, { align: 'right' })
+      pdf.text(val, cMntX, y, { align: 'right' })
       y += 6
     })
 
@@ -245,10 +232,10 @@ export default function ViewProforma() {
     pdf.setFont('helvetica', 'bold')
     pdf.setFontSize(9)
     pdf.text('TOTAL TTC :', LX, y + 4.5)
-    pdf.text(Number(proforma.total_ttc).toLocaleString('fr-FR') + ' FCFA', cMnt, y + 4.5, { align: 'right' })
+    pdf.text(Number(proforma.total_ttc).toLocaleString('fr-FR') + ' FCFA', cMntX, y + 4.5, { align: 'right' })
     y += 14
 
-    // ── MODALITÉS ─────────────────────────────────────────────
+    // MODALITÉS
     pdf.setTextColor(...blue)
     pdf.setFont('helvetica', 'bold')
     pdf.setFontSize(8.5)
@@ -261,20 +248,7 @@ export default function ViewProforma() {
       y += 5
     })
 
-    // ── SIGNATURE ─────────────────────────────────────────────
-    if (signImg) {
-      const sH = 22
-      const sW = Math.min((signImg.w * sH) / signImg.h, 40)
-      const sX = RX - sW
-      const sY = H - 45
-      pdf.setTextColor(...gray)
-      pdf.setFont('helvetica', 'normal')
-      pdf.setFontSize(7.5)
-      pdf.text('Signature autorisée', sX + sW / 2, sY - 3, { align: 'center' })
-      pdf.addImage(signImg.data, 'PNG', sX, sY, sW, sH)
-    }
-
-    // ── MENTION LÉGALE ────────────────────────────────────────
+    // MENTION LÉGALE
     pdf.setTextColor(160, 160, 160)
     pdf.setFont('helvetica', 'italic')
     pdf.setFontSize(7)
@@ -283,7 +257,7 @@ export default function ViewProforma() {
       W / 2, H - 16, { align: 'center' }
     )
 
-    // ── FOOTER ────────────────────────────────────────────────
+    // FOOTER
     pdf.setFillColor(...blue)
     pdf.rect(0, H - 12, W, 12, 'F')
     pdf.setTextColor(...white)
@@ -293,255 +267,61 @@ export default function ViewProforma() {
     pdf.text(settings?.phone || '', W / 2, H - 5, { align: 'center' })
     pdf.text(settings?.email || '', RX, H - 5, { align: 'right' })
 
-    // ── SAVE ──────────────────────────────────────────────────
-    const entreprise = (settings?.company_name || 'GBEFFA').replace(/\s+/g, '_')
-    const client = (proforma.client_name || 'Client').replace(/\s+/g, '_')
-    pdf.save(`${entreprise}_${client}_${proforma.numero}.pdf`)
-  }
-
-    // ── EN-TÊTE ───────────────────────────────────────────────
-    // Logo
-    if (logoImg) {
-      const logoH = 18
-      const logoW = (logoImg.w * logoH) / logoImg.h
-      pdf.addImage(logoImg.data, 'PNG', 10, 10, logoW, logoH)
-    } else {
-      pdf.setTextColor(...blue)
-      pdf.setFont('helvetica', 'bold')
-      pdf.setFontSize(11)
-      pdf.text(settings?.company_name || '', 10, 20)
-    }
-
-    // Titre PRO FORMA
-    pdf.setTextColor(...blue)
-    pdf.setFont('helvetica', 'bold')
-    pdf.setFontSize(26)
-    pdf.text('PRO FORMA', W - 10, 16, { align: 'right' })
-
-    // Infos proforma
-    pdf.setFont('helvetica', 'normal')
-    pdf.setFontSize(9)
-    pdf.setTextColor(...darkGray)
-    pdf.text(`Numéro : ${proforma.numero}`, W - 10, 23, { align: 'right' })
-    pdf.text(`Date : ${new Date(proforma.date).toLocaleDateString('fr-FR')}`, W - 10, 28, { align: 'right' })
-    pdf.text(`Validité : ${settings?.validity_days || 15} jours`, W - 10, 33, { align: 'right' })
-    pdf.text(`Numéro IFU : ${settings?.ifu || ''}`, W - 10, 38, { align: 'right' })
-
-    y = 46
-
-    // Ligne de séparation
-    pdf.setDrawColor(220, 220, 220)
-    pdf.line(10, y, W - 10, y)
-    y += 6
-
-    // ── CLIENT ────────────────────────────────────────────────
-    pdf.setTextColor(...blue)
-    pdf.setFont('helvetica', 'bold')
-    pdf.setFontSize(9)
-    pdf.text('PAYABLE TO', 10, y)
-    y += 5
-
-    pdf.setTextColor(50, 50, 50)
-    pdf.setFontSize(9)
-    const clientFields = [
-      ['Nom / Raison sociale', proforma.client_name],
-      ['Adresse', proforma.client_address],
-      ['Téléphone', proforma.client_phone],
-      ['Email', proforma.client_email],
-    ]
-    clientFields.forEach(([label, val]) => {
-      pdf.setFont('helvetica', 'bold')
-      pdf.text(`${label} :`, 10, y)
-      pdf.setFont('helvetica', 'normal')
-      pdf.text(val || '___________', 52, y)
-      y += 5
-    })
-    y += 4
-
-    // ── TABLEAU ───────────────────────────────────────────────
-    const col = { desig: 10, qty: 130, pu: 155, montant: 200 }
-    const rowH = 8
-
-    // Header tableau
-    pdf.setFillColor(...blue)
-    pdf.rect(10, y, 190, rowH, 'F')
-    pdf.setTextColor(...white)
-    pdf.setFont('helvetica', 'bold')
-    pdf.setFontSize(9)
-    pdf.text('DÉSIGNATION', col.desig + 3, y + 5.5)
-    pdf.text('QTY', col.qty + 8, y + 5.5, { align: 'center' })
-    pdf.text('P.U (FCFA)', col.pu + 10, y + 5.5, { align: 'center' })
-    pdf.text('MONTANT (FCFA)', col.montant, y + 5.5, { align: 'right' })
-    y += rowH
-
-    // Lignes
-    pdf.setFont('helvetica', 'normal')
-    pdf.setFontSize(9)
-    proforma.items.forEach((item, i) => {
-      if (i % 2 !== 0) {
-        pdf.setFillColor(...lightGray)
-        pdf.rect(10, y, 190, rowH, 'F')
-      }
-      pdf.setTextColor(40, 40, 40)
-      // Désignation - tronquer si trop long
-      const desig = item.designation?.length > 55 ? item.designation.substring(0, 52) + '...' : (item.designation || '')
-      pdf.text(desig, col.desig + 3, y + 5.5)
-      pdf.text(String(item.qty), col.qty + 8, y + 5.5, { align: 'center' })
-      pdf.text(Number(item.pu).toLocaleString('fr-FR'), col.pu + 10, y + 5.5, { align: 'center' })
-      pdf.text(Number(item.montant).toLocaleString('fr-FR'), col.montant, y + 5.5, { align: 'right' })
-      y += rowH
-    })
-    y += 6
-
-    // ── TOTAUX ────────────────────────────────────────────────
-    const totaux = [
-      [`TOTAL HT :`, Number(proforma.total_ht).toLocaleString('fr-FR') + ' FCFA'],
-      [`TOTAL APRÈS REMISE :`, Number(proforma.total_apres_remise).toLocaleString('fr-FR') + ' FCFA'],
-      [`TVA (${proforma.tva_rate}%) :`, Number(proforma.tva_amount).toLocaleString('fr-FR') + ' FCFA'],
-    ]
-    pdf.setFontSize(9)
-    totaux.forEach(([label, val]) => {
-      pdf.setTextColor(...darkGray)
-      pdf.setFont('helvetica', 'normal')
-      pdf.text(label, 125, y)
-      pdf.setTextColor(30, 30, 30)
-      pdf.setFont('helvetica', 'bold')
-      pdf.text(val, W - 10, y, { align: 'right' })
-      y += 6
-    })
-
-    // Total TTC
-    pdf.setFillColor(...blue)
-    pdf.rect(120, y - 2, 80, 9, 'F')
-    pdf.setTextColor(...white)
-    pdf.setFont('helvetica', 'bold')
-    pdf.setFontSize(10)
-    pdf.text('TOTAL TTC :', 125, y + 4.5)
-    pdf.text(Number(proforma.total_ttc).toLocaleString('fr-FR') + ' FCFA', W - 10, y + 4.5, { align: 'right' })
-    y += 14
-
-    // ── MODALITÉS ─────────────────────────────────────────────
-    pdf.setTextColor(...blue)
-    pdf.setFont('helvetica', 'bold')
-    pdf.setFontSize(9)
-    pdf.text('MODALITÉS DE PAIEMENT', 10, y)
-    y += 5
-    pdf.setTextColor(50, 50, 50)
-    pdf.setFont('helvetica', 'normal')
-    ;(proforma.payment_terms || '').split('\n').forEach(line => {
-      pdf.text('• ' + line, 10, y)
-      y += 5
-    })
-
-    // ── SIGNATURE ─────────────────────────────────────────────
-    if (signImg) {
-      const sigH = 25
-      const sigW = (signImg.w * sigH) / signImg.h
-      const sigX = W - 10 - sigW
-      // "Signature autorisée" au dessus
-      pdf.setTextColor(...darkGray)
-      pdf.setFont('helvetica', 'normal')
-      pdf.setFontSize(8)
-      pdf.text('Signature autorisée', W - 10 - sigW / 2, 252, { align: 'center' })
-      pdf.addImage(signImg.data, 'PNG', sigX, 255, sigW, sigH)
-    }
-
-    // ── MENTION LÉGALE ────────────────────────────────────────
-    pdf.setTextColor(160, 160, 160)
-    pdf.setFont('helvetica', 'italic')
-    pdf.setFontSize(7.5)
-    pdf.text(
-      "Cette facture pro forma est émise à titre informatif et ne constitue pas une facture définitive.",
-      W / 2, 282, { align: 'center' }
-    )
-
-    // ── FOOTER ────────────────────────────────────────────────
-    pdf.setFillColor(...blue)
-    pdf.rect(0, 285, W, 12, 'F')
-    pdf.setTextColor(...white)
-    pdf.setFont('helvetica', 'normal')
-    pdf.setFontSize(8)
-    pdf.text(settings?.website || settings?.company_name || '', 10, 292)
-    pdf.text(settings?.phone || '', W / 2, 292, { align: 'center' })
-    pdf.text(settings?.email || '', W - 10, 292, { align: 'right' })
-
-    // ── SAVE ──────────────────────────────────────────────────
+    // NOM FICHIER
     const entreprise = (settings?.company_name || 'GBEFFA').replace(/\s+/g, '_')
     const client = (proforma.client_name || 'Client').replace(/\s+/g, '_')
     pdf.save(`${entreprise}_${client}_${proforma.numero}.pdf`)
   }
 
   if (loading) return (
-    <div className="min-h-screen bg-gray-50">
-      <Navbar />
+    <div className="min-h-screen bg-gray-50"><Navbar />
       <div className="text-center py-20 text-gray-400">Chargement...</div>
     </div>
   )
 
   if (!proforma) return (
-    <div className="min-h-screen bg-gray-50">
-      <Navbar />
+    <div className="min-h-screen bg-gray-50"><Navbar />
       <div className="text-center py-20 text-gray-400">Proforma introuvable</div>
     </div>
   )
 
-  const displayData = editMode ? form : proforma
-  const items = displayData?.items || []
+  const items = (editMode ? form : proforma)?.items || []
 
   return (
     <div className="min-h-screen bg-gray-100">
       <Navbar />
 
-      {/* Boutons actions */}
+      {/* BOUTONS */}
       <div className="max-w-5xl mx-auto px-4 py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <button
-          onClick={() => router.push('/')}
-          className="flex items-center gap-2 text-gray-600 hover:text-[#1a3a5c] text-sm font-medium"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Retour
+        <button onClick={() => router.push('/')}
+          className="flex items-center gap-2 text-gray-600 hover:text-[#1a3a5c] text-sm font-medium">
+          <ArrowLeft className="w-4 h-4" /> Retour
         </button>
         <div className="flex flex-wrap gap-2 w-full sm:w-auto">
           {!editMode ? (
             <>
-              <button
-                onClick={() => setEditMode(true)}
-                className="flex items-center gap-2 border border-[#1a3a5c] text-[#1a3a5c] px-4 py-2 rounded-lg hover:bg-blue-50 transition text-sm flex-1 sm:flex-none justify-center"
-              >
-                <Edit className="w-4 h-4" />
-                Modifier
+              <button onClick={() => setEditMode(true)}
+                className="flex items-center gap-2 border border-[#1a3a5c] text-[#1a3a5c] px-4 py-2 rounded-lg hover:bg-blue-50 transition text-sm flex-1 sm:flex-none justify-center">
+                <Edit className="w-4 h-4" /> Modifier
               </button>
-              <button
-                onClick={() => window.print()}
-                className="flex items-center gap-2 border border-gray-400 text-gray-600 px-4 py-2 rounded-lg hover:bg-gray-50 transition text-sm flex-1 sm:flex-none justify-center"
-              >
-                <Printer className="w-4 h-4" />
-                Imprimer
+              <button onClick={() => window.print()}
+                className="flex items-center gap-2 border border-gray-400 text-gray-600 px-4 py-2 rounded-lg hover:bg-gray-50 transition text-sm flex-1 sm:flex-none justify-center">
+                <Printer className="w-4 h-4" /> Imprimer
               </button>
-              <button
-                onClick={exportPDF}
-                className="flex items-center gap-2 bg-[#1a3a5c] text-white px-4 py-2 rounded-lg hover:bg-blue-800 transition text-sm flex-1 sm:flex-none justify-center"
-              >
-                <Download className="w-4 h-4" />
-                Exporter PDF
+              <button onClick={exportPDF}
+                className="flex items-center gap-2 bg-[#1a3a5c] text-white px-4 py-2 rounded-lg hover:bg-blue-800 transition text-sm flex-1 sm:flex-none justify-center">
+                <Download className="w-4 h-4" /> Exporter PDF
               </button>
             </>
           ) : (
             <>
-              <button
-                onClick={() => { setEditMode(false); setForm({ ...proforma }) }}
-                className="flex items-center gap-2 border border-red-400 text-red-500 px-4 py-2 rounded-lg hover:bg-red-50 transition text-sm flex-1 sm:flex-none justify-center"
-              >
-                <X className="w-4 h-4" />
-                Annuler
+              <button onClick={() => { setEditMode(false); setForm({ ...proforma }) }}
+                className="flex items-center gap-2 border border-red-400 text-red-500 px-4 py-2 rounded-lg hover:bg-red-50 transition text-sm flex-1 sm:flex-none justify-center">
+                <X className="w-4 h-4" /> Annuler
               </button>
-              <button
-                onClick={saveChanges}
-                disabled={saving}
-                className="flex items-center gap-2 bg-[#1a3a5c] text-white px-4 py-2 rounded-lg hover:bg-blue-800 transition text-sm flex-1 sm:flex-none justify-center disabled:opacity-50"
-              >
-                <Save className="w-4 h-4" />
-                {saving ? 'Sauvegarde...' : 'Sauvegarder les modifications'}
+              <button onClick={saveChanges} disabled={saving}
+                className="flex items-center gap-2 bg-[#1a3a5c] text-white px-4 py-2 rounded-lg hover:bg-blue-800 transition text-sm flex-1 sm:flex-none justify-center disabled:opacity-50">
+                <Save className="w-4 h-4" /> {saving ? 'Sauvegarde...' : 'Sauvegarder'}
               </button>
             </>
           )}
@@ -552,11 +332,9 @@ export default function ViewProforma() {
       {editMode && form && (
         <div className="max-w-5xl mx-auto px-4 pb-6">
           <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 mb-4 text-sm text-yellow-800 font-medium">
-            ✏️ Vous êtes en mode modification. Cliquez sur "Sauvegarder les modifications" quand vous avez terminé.
+            ✏️ Mode modification — cliquez "Sauvegarder" quand vous avez terminé.
           </div>
-
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-            {/* Infos */}
             <div className="bg-white rounded-xl shadow p-4 space-y-3">
               <h2 className="font-semibold text-[#1a3a5c]">Informations</h2>
               <div>
@@ -570,8 +348,6 @@ export default function ViewProforma() {
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
               </div>
             </div>
-
-            {/* Client */}
             <div className="bg-white rounded-xl shadow p-4 space-y-3">
               <h2 className="font-semibold text-[#1a3a5c]">Client</h2>
               {[
@@ -596,29 +372,26 @@ export default function ViewProforma() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-[#1a3a5c] text-white">
-                    <th className="px-3 py-2 text-left rounded-tl-lg">Désignation</th>
+                    <th className="px-3 py-2 text-left">Désignation</th>
                     <th className="px-3 py-2 text-center w-20">QTY</th>
                     <th className="px-3 py-2 text-center w-28">P.U</th>
                     <th className="px-3 py-2 text-right w-32">Montant</th>
-                    <th className="px-3 py-2 w-10 rounded-tr-lg"></th>
+                    <th className="px-3 py-2 w-10"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {form.items.map((item, i) => (
                     <tr key={i} className="border-b border-gray-100">
                       <td className="px-2 py-2">
-                        <input type="text" value={item.designation}
-                          onChange={e => updateItem(i, 'designation', e.target.value)}
+                        <input type="text" value={item.designation} onChange={e => updateItem(i, 'designation', e.target.value)}
                           className="w-full border border-gray-200 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-300" />
                       </td>
                       <td className="px-2 py-2">
-                        <input type="number" value={item.qty}
-                          onChange={e => updateItem(i, 'qty', Number(e.target.value))}
+                        <input type="number" value={item.qty} onChange={e => updateItem(i, 'qty', Number(e.target.value))}
                           className="w-full border border-gray-200 rounded px-2 py-1 text-sm text-center focus:outline-none focus:ring-1 focus:ring-blue-300" />
                       </td>
                       <td className="px-2 py-2">
-                        <input type="number" value={item.pu}
-                          onChange={e => updateItem(i, 'pu', Number(e.target.value))}
+                        <input type="number" value={item.pu} onChange={e => updateItem(i, 'pu', Number(e.target.value))}
                           className="w-full border border-gray-200 rounded px-2 py-1 text-sm text-center focus:outline-none focus:ring-1 focus:ring-blue-300" />
                       </td>
                       <td className="px-2 py-2 text-right font-medium text-[#1a3a5c]">
@@ -635,55 +408,41 @@ export default function ViewProforma() {
               </table>
             </div>
             <button onClick={addItem} className="mt-3 flex items-center gap-2 text-[#1a3a5c] hover:text-blue-800 text-sm font-medium">
-              <PlusCircle className="w-4 h-4" />
-              Ajouter une ligne
+              <PlusCircle className="w-4 h-4" /> Ajouter une ligne
             </button>
           </div>
 
-          {/* Options et totaux */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div className="bg-white rounded-xl shadow p-4 space-y-3">
               <h2 className="font-semibold text-[#1a3a5c]">Options</h2>
-
-              {/* TVA toggle */}
               <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                 <div>
                   <p className="text-sm font-medium text-gray-700">TVA ({form.tva_rate}%)</p>
                   <p className="text-xs text-gray-400">Activer ou désactiver</p>
                 </div>
-                <button
-                  onClick={() => setTvaActive(!tvaActive)}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${tvaActive ? 'bg-[#1a3a5c]' : 'bg-gray-300'}`}
-                >
+                <button onClick={() => setTvaActive(!tvaActive)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${tvaActive ? 'bg-[#1a3a5c]' : 'bg-gray-300'}`}>
                   <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${tvaActive ? 'translate-x-6' : 'translate-x-1'}`} />
                 </button>
               </div>
-
               {tvaActive && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Taux TVA (%)</label>
-                  <input type="number" value={form.tva_rate}
-                    onChange={e => setForm({ ...form, tva_rate: Number(e.target.value) })}
+                  <input type="number" value={form.tva_rate} onChange={e => setForm({ ...form, tva_rate: Number(e.target.value) })}
                     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
                 </div>
               )}
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Remise (%)</label>
-                <input type="number" value={form.remise_percent}
-                  onChange={e => setForm({ ...form, remise_percent: Number(e.target.value) })}
+                <input type="number" value={form.remise_percent} onChange={e => setForm({ ...form, remise_percent: Number(e.target.value) })}
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
               </div>
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Modalités de paiement</label>
-                <textarea value={form.payment_terms}
-                  onChange={e => setForm({ ...form, payment_terms: e.target.value })}
+                <textarea value={form.payment_terms} onChange={e => setForm({ ...form, payment_terms: e.target.value })}
                   rows={3} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
               </div>
             </div>
-
-            {/* Totaux */}
             <div className="bg-white rounded-xl shadow p-4">
               <h2 className="font-semibold text-[#1a3a5c] mb-3">Récapitulatif</h2>
               <div className="space-y-2 text-sm">
@@ -710,153 +469,131 @@ export default function ViewProforma() {
               </div>
             </div>
           </div>
-
           <div className="mt-4 flex justify-end">
-            <button
-              onClick={saveChanges}
-              disabled={saving}
-              className="flex items-center gap-2 bg-[#1a3a5c] text-white px-6 py-3 rounded-lg hover:bg-blue-800 transition disabled:opacity-50 w-full sm:w-auto justify-center"
-            >
-              <Save className="w-4 h-4" />
-              {saving ? 'Sauvegarde...' : 'Sauvegarder les modifications'}
+            <button onClick={saveChanges} disabled={saving}
+              className="flex items-center gap-2 bg-[#1a3a5c] text-white px-6 py-3 rounded-lg hover:bg-blue-800 transition disabled:opacity-50 w-full sm:w-auto justify-center">
+              <Save className="w-4 h-4" /> {saving ? 'Sauvegarde...' : 'Sauvegarder les modifications'}
             </button>
           </div>
         </div>
       )}
 
-      {/* APERCU PROFORMA */}
+      {/* APERÇU PROFORMA - responsive avec scroll horizontal sur mobile */}
       {!editMode && (
-        <div className="max-w-4xl mx-auto px-4 pb-10">
-          <div
-  ref={printRef}
-  id="proforma-print"
-  className="bg-white shadow-lg"
-  style={{
-    fontFamily: 'Arial, sans-serif',
-    fontSize: '13px',
-    minHeight: '297mm',
-    width: '210mm',        // forcer largeur A4
-    margin: '0 auto',      // centrer sur desktop
-    display: 'flex',
-    flexDirection: 'column',
-  }}
->
-
-            {/* En-tête */}
-            <div className="flex items-start justify-between px-8 pt-8 pb-4">
-              <div>
-                {settings?.logo_url ? (
-                  <img src={settings.logo_url} alt="Logo" className="h-16 object-contain mb-1" crossOrigin="anonymous" />
-                ) : (
-                  <div className="text-[#1a3a5c] font-bold text-lg">{settings?.company_name}</div>
-                )}
+        <div className="max-w-4xl mx-auto px-2 sm:px-4 pb-10">
+          <div className="overflow-x-auto">
+            <div
+              id="proforma-print"
+              className="bg-white shadow-lg"
+              style={{
+                fontFamily: 'Arial, sans-serif',
+                fontSize: '13px',
+                width: '210mm',
+                minWidth: '210mm',
+                margin: '0 auto',
+              }}
+            >
+              {/* En-tête */}
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '28px 30px 14px' }}>
+                <div>
+                  {settings?.logo_url ? (
+                    <img src={settings.logo_url} alt="Logo" style={{ height: '60px', objectFit: 'contain' }} crossOrigin="anonymous" />
+                  ) : (
+                    <div style={{ color: '#1a3a5c', fontWeight: 'bold', fontSize: '16px' }}>{settings?.company_name}</div>
+                  )}
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ color: '#1a3a5c', fontWeight: 'bold', fontSize: '28px', marginBottom: '6px' }}>PRO FORMA</div>
+                  <div style={{ fontSize: '12px', color: '#555' }}>Numéro : {proforma.numero}</div>
+                  <div style={{ fontSize: '12px', color: '#555' }}>Date : {new Date(proforma.date).toLocaleDateString('fr-FR')}</div>
+                  <div style={{ fontSize: '12px', color: '#555' }}>Validité : {settings?.validity_days || 15} jours</div>
+                  <div style={{ fontSize: '12px', color: '#555' }}>Numéro IFU : {settings?.ifu}</div>
+                </div>
               </div>
-              <div className="text-right">
-                <h1 className="text-3xl font-bold text-[#1a3a5c] mb-2">PRO FORMA</h1>
-                <p className="text-sm text-gray-600">Numéro : {proforma.numero}</p>
-                <p className="text-sm text-gray-600">Date : {new Date(proforma.date).toLocaleDateString('fr-FR')}</p>
-                <p className="text-sm text-gray-600">Validité : {settings?.validity_days || 15} jours</p>
-                <p className="text-sm text-gray-600">Numéro IFU : {settings?.ifu}</p>
+
+              <hr style={{ margin: '0 30px', borderColor: '#e5e7eb' }} />
+
+              {/* Client */}
+              <div style={{ padding: '14px 30px' }}>
+                <div style={{ color: '#1a3a5c', fontWeight: 'bold', fontSize: '12px', textTransform: 'uppercase', marginBottom: '8px' }}>Payable To</div>
+                {[
+                  ['Nom / Raison sociale', proforma.client_name],
+                  ['Adresse', proforma.client_address],
+                  ['Téléphone', proforma.client_phone],
+                  ['Email', proforma.client_email],
+                ].map(([label, val]) => (
+                  <div key={label} style={{ fontSize: '12px', marginBottom: '3px' }}>
+                    <strong>{label} :</strong> {val || '___________'}
+                  </div>
+                ))}
               </div>
-            </div>
 
-            <hr className="mx-8 border-gray-200" />
-
-            {/* Client */}
-            <div className="px-8 py-4">
-              <h2 className="text-[#1a3a5c] font-bold text-sm uppercase mb-2">Payable To</h2>
-              <p className="text-sm"><span className="font-medium">Nom / Raison sociale :</span> {proforma.client_name || '___________'}</p>
-              <p className="text-sm"><span className="font-medium">Adresse :</span> {proforma.client_address || '___________'}</p>
-              <p className="text-sm"><span className="font-medium">Téléphone :</span> {proforma.client_phone || '___________'}</p>
-              <p className="text-sm"><span className="font-medium">Email :</span> {proforma.client_email || '___________'}</p>
-            </div>
-
-            {/* Tableau */}
-            <div className="px-8 pb-4">
-              <table className="w-full text-sm border-collapse">
-                <thead>
-                  <tr className="bg-[#1a3a5c] text-white">
-                    <th className="px-4 py-3 text-left">DÉSIGNATION</th>
-                    <th className="px-4 py-3 text-center w-16">QTY</th>
-                    <th className="px-4 py-3 text-center w-28">P.U</th>
-                    <th className="px-4 py-3 text-right w-32">MONTANT</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map((item, i) => (
-                    <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                      <td className="px-4 py-3">{item.designation}</td>
-                      <td className="px-4 py-3 text-center">{item.qty}</td>
-                      <td className="px-4 py-3 text-center">{Number(item.pu).toLocaleString('fr-FR')}</td>
-                      <td className="px-4 py-3 text-right">{Number(item.montant).toLocaleString('fr-FR')}</td>
+              {/* Tableau */}
+              <div style={{ padding: '0 30px 14px' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                  <thead>
+                    <tr style={{ backgroundColor: '#1a3a5c', color: 'white' }}>
+                      <th style={{ padding: '10px 12px', textAlign: 'left', width: '50%' }}>DÉSIGNATION</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'center', width: '12%' }}>QTY</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'center', width: '18%' }}>P.U (FCFA)</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'right', width: '20%' }}>MONTANT (FCFA)</th>
                     </tr>
+                  </thead>
+                  <tbody>
+                    {items.map((item, i) => (
+                      <tr key={i} style={{ backgroundColor: i % 2 === 0 ? 'white' : '#f9fafb' }}>
+                        <td style={{ padding: '10px 12px' }}>{item.designation}</td>
+                        <td style={{ padding: '10px 12px', textAlign: 'center' }}>{item.qty}</td>
+                        <td style={{ padding: '10px 12px', textAlign: 'center' }}>{Number(item.pu).toLocaleString('fr-FR')}</td>
+                        <td style={{ padding: '10px 12px', textAlign: 'right' }}>{Number(item.montant).toLocaleString('fr-FR')}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Totaux */}
+              <div style={{ padding: '0 30px 14px', display: 'flex', justifyContent: 'flex-end' }}>
+                <div style={{ width: '260px', fontSize: '12px' }}>
+                  {[
+                    ['TOTAL HT :', Number(proforma.total_ht).toLocaleString('fr-FR') + ' FCFA'],
+                    ['TOTAL APRÈS REMISE :', Number(proforma.total_apres_remise).toLocaleString('fr-FR') + ' FCFA'],
+                    [`TVA (${proforma.tva_rate}%) :`, Number(proforma.tva_amount).toLocaleString('fr-FR') + ' FCFA'],
+                  ].map(([label, val]) => (
+                    <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid #f0f0f0' }}>
+                      <span style={{ color: '#666' }}>{label}</span>
+                      <span style={{ fontWeight: '500' }}>{val}</span>
+                    </div>
                   ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Totaux */}
-            <div className="px-8 pb-4">
-              <div className="flex flex-col items-end space-y-1 text-sm">
-                <div className="flex justify-between w-72">
-                  <span className="text-gray-600">TOTAL HT :</span>
-                  <span className="font-medium">{Number(proforma.total_ht).toLocaleString('fr-FR')} FCFA</span>
-                </div>
-                <div className="flex justify-between w-72">
-                  <span className="text-gray-600">TOTAL APRÈS REMISE :</span>
-                  <span className="font-medium">{Number(proforma.total_apres_remise).toLocaleString('fr-FR')} FCFA</span>
-                </div>
-                <div className="flex justify-between w-72">
-                  <span className="text-gray-600">TVA ({proforma.tva_rate}%) :</span>
-                  <span className="font-medium">{Number(proforma.tva_amount).toLocaleString('fr-FR')} FCFA</span>
-                </div>
-                <div className="flex justify-between w-72 bg-[#1a3a5c] text-white px-3 py-2 rounded mt-1">
-                  <span className="font-bold">TOTAL TTC :</span>
-                  <span className="font-bold">{Number(proforma.total_ttc).toLocaleString('fr-FR')} FCFA</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', backgroundColor: '#1a3a5c', color: 'white', padding: '8px 10px', borderRadius: '4px', marginTop: '6px', fontWeight: 'bold' }}>
+                    <span>TOTAL TTC :</span>
+                    <span>{Number(proforma.total_ttc).toLocaleString('fr-FR')} FCFA</span>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Modalités */}
-            <div className="px-8 pb-4">
-              <h2 className="text-[#1a3a5c] font-bold text-sm uppercase mb-2">Modalités de paiement</h2>
-              {(proforma.payment_terms || '').split('\n').map((line, i) => (
-                <p key={i} className="text-sm">• {line}</p>
-              ))}
-            </div>
-
-            {/* Espaceur qui pousse le footer vers le bas */}
-            <div style={{ flex: 1 }} />
-
-            {/* Signature */}
-            {settings?.signature_url && (
-              <div className="px-8 pb-4 flex justify-end">
-                <div className="text-center">
-                  <p className="text-xs text-gray-500 mb-1">Signature autorisée</p>
-                  <img 
-                    src={settings.signature_url} 
-                    alt="Signature" 
-                    style={{ height: '100px', objectFit: 'contain' }}
-                    crossOrigin="anonymous"
-                  />
-                </div>
+              {/* Modalités */}
+              <div style={{ padding: '0 30px 14px' }}>
+                <div style={{ color: '#1a3a5c', fontWeight: 'bold', fontSize: '12px', textTransform: 'uppercase', marginBottom: '6px' }}>Modalités de paiement</div>
+                {(proforma.payment_terms || '').split('\n').map((line, i) => (
+                  <div key={i} style={{ fontSize: '12px' }}>• {line}</div>
+                ))}
               </div>
-            )}
 
-            {/* Mention légale + Pied de page - EN FLUX NORMAL, plus de position absolute */}
-            <div>
-              <div className="px-8 py-2 text-center">
-                <p className="text-xs text-gray-400 italic">
+              {/* Mention légale */}
+              <div style={{ padding: '8px 30px', textAlign: 'center' }}>
+                <p style={{ fontSize: '10px', color: '#aaa', fontStyle: 'italic' }}>
                   Cette facture pro forma est émise à titre informatif et ne constitue pas une facture définitive.
                 </p>
               </div>
-              <div className="bg-[#1a3a5c] text-white px-8 py-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-sm">
+
+              {/* Footer */}
+              <div style={{ backgroundColor: '#1a3a5c', color: 'white', padding: '14px 30px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', gap: '10px' }}>
                 <span>{settings?.website || settings?.company_name}</span>
                 <span>{settings?.phone}</span>
                 <span>{settings?.email}</span>
               </div>
             </div>
-
           </div>
         </div>
       )}
@@ -867,40 +604,12 @@ export default function ViewProforma() {
           body * { visibility: hidden; }
           #proforma-print, #proforma-print * { visibility: visible; }
           @page { margin: 0; size: A4 portrait; }
-
           #proforma-print {
-            position: fixed;
-            top: 0;
-            left: 0;
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
             width: 210mm !important;
-            margin: 0 !important;
-            padding: 0 !important;
             box-shadow: none !important;
-            font-size: 13px !important;
-          }
-
-          /* Fixes mobile */
-          #proforma-print h1 {
-            font-size: 22px !important;
-            white-space: nowrap !important;
-          }
-          #proforma-print table {
-            font-size: 10px !important;
-          }
-          #proforma-print table th,
-          #proforma-print table td {
-            padding: 4px 6px !important;
-          }
-          #proforma-print .w-72 {
-            width: 100% !important;
-          }
-          #proforma-print .flex.flex-col.items-end {
-            align-items: stretch !important;
-            padding: 0 16px !important;
-          }
-          #proforma-print .flex.justify-between {
-            display: flex !important;
-            justify-content: space-between !important;
           }
         }
       `}</style>
