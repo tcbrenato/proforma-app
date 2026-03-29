@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import { supabase } from '@/lib/supabase'
@@ -104,7 +104,8 @@ export default function ViewProforma() {
       img.crossOrigin = 'anonymous'
       img.onload = () => {
         const c = document.createElement('canvas')
-        c.width = img.width; c.height = img.height
+        c.width = img.width
+        c.height = img.height
         c.getContext('2d').drawImage(img, 0, 0)
         resolve({ data: c.toDataURL('image/png'), w: img.width, h: img.height })
       }
@@ -113,8 +114,9 @@ export default function ViewProforma() {
     })
 
     const logoImg = settings?.logo_url ? await loadImg(settings.logo_url) : null
+    const signImg = settings?.signature_url ? await loadImg(settings.signature_url) : null
 
-    // LOGO
+    // ── LOGO ──
     if (logoImg) {
       const lh = 18
       const lw = Math.min((logoImg.w * lh) / logoImg.h, 50)
@@ -126,7 +128,7 @@ export default function ViewProforma() {
       pdf.text(settings?.company_name || '', ML, y + 8)
     }
 
-    // TITRE
+    // ── TITRE ──
     pdf.setTextColor(...blue)
     pdf.setFont('helvetica', 'bold')
     pdf.setFontSize(22)
@@ -140,12 +142,12 @@ export default function ViewProforma() {
     pdf.text(`IFU : ${settings?.ifu || ''}`, RX, y + 29, { align: 'right' })
     y += 36
 
-    // SÉPARATEUR
+    // ── SÉPARATEUR ──
     pdf.setDrawColor(200, 200, 200)
     pdf.line(ML, y, RX, y)
     y += 7
 
-    // CLIENT
+    // ── CLIENT ──
     pdf.setTextColor(...blue)
     pdf.setFont('helvetica', 'bold')
     pdf.setFontSize(9)
@@ -169,16 +171,17 @@ export default function ViewProforma() {
     })
     y += 5
 
-    // TABLEAU
+    // ── TABLEAU ──
     const TW = W - ML - MR
     const rH = 7
-    // Positions des colonnes
-    const cDesigX = ML + 2
-    const cQtyX   = ML + TW * 0.56
-    const cPuX    = ML + TW * 0.72
-    const cMntX   = RX
 
-    // Header
+    // Colonnes avec positions fixes en mm
+    const cDesigX = ML + 2      // Désignation : début gauche
+    const cQtyX   = ML + 110    // QTY : centré à 110mm
+    const cPuX    = ML + 142    // P.U : centré à 142mm
+    const cMntX   = RX          // MONTANT : aligné à droite
+
+    // Header tableau
     pdf.setFillColor(...blue)
     pdf.rect(ML, y, TW, rH, 'F')
     pdf.setTextColor(...white)
@@ -187,10 +190,10 @@ export default function ViewProforma() {
     pdf.text('DÉSIGNATION', cDesigX, y + 4.8)
     pdf.text('QTY', cQtyX, y + 4.8, { align: 'center' })
     pdf.text('P.U (FCFA)', cPuX, y + 4.8, { align: 'center' })
-    pdf.text('MONTANT (FCFA)', cMntX, y + 4.8, { align: 'right' })
+    pdf.text('MONTANT', cMntX, y + 4.8, { align: 'right' })
     y += rH
 
-    // Lignes
+    // Lignes items
     pdf.setFont('helvetica', 'normal')
     pdf.setFontSize(8.5)
     proforma.items.forEach((item, i) => {
@@ -199,20 +202,20 @@ export default function ViewProforma() {
         pdf.rect(ML, y, TW, rH, 'F')
       }
       pdf.setTextColor(40, 40, 40)
-      pdf.text((item.designation || '').substring(0, 50), cDesigX, y + 4.8)
+      pdf.text((item.designation || '').substring(0, 52), cDesigX, y + 4.8)
       pdf.text(String(item.qty), cQtyX, y + 4.8, { align: 'center' })
       pdf.text(Number(item.pu).toLocaleString('fr-FR'), cPuX, y + 4.8, { align: 'center' })
-      pdf.text(Number(item.montant).toLocaleString('fr-FR'), cMntX, y + 4.8, { align: 'right' })
+      pdf.text(Number(item.montant).toLocaleString('fr-FR') + ' FCFA', cMntX, y + 4.8, { align: 'right' })
       y += rH
     })
     y += 8
 
-    // TOTAUX
+    // ── TOTAUX ──
     const LX = W / 2 + 15
     pdf.setFontSize(8.5)
     const totaux = [
-      [`TOTAL HT :`, Number(proforma.total_ht).toLocaleString('fr-FR') + ' FCFA'],
-      [`TOTAL APRÈS REMISE :`, Number(proforma.total_apres_remise).toLocaleString('fr-FR') + ' FCFA'],
+      ['TOTAL HT :', Number(proforma.total_ht).toLocaleString('fr-FR') + ' FCFA'],
+      ['TOTAL APRÈS REMISE :', Number(proforma.total_apres_remise).toLocaleString('fr-FR') + ' FCFA'],
       [`TVA (${proforma.tva_rate}%) :`, Number(proforma.tva_amount).toLocaleString('fr-FR') + ' FCFA'],
     ]
     totaux.forEach(([label, val]) => {
@@ -235,7 +238,7 @@ export default function ViewProforma() {
     pdf.text(Number(proforma.total_ttc).toLocaleString('fr-FR') + ' FCFA', cMntX, y + 4.5, { align: 'right' })
     y += 14
 
-    // MODALITÉS
+    // ── MODALITÉS ──
     pdf.setTextColor(...blue)
     pdf.setFont('helvetica', 'bold')
     pdf.setFontSize(8.5)
@@ -248,7 +251,20 @@ export default function ViewProforma() {
       y += 5
     })
 
-    // MENTION LÉGALE
+    // ── SIGNATURE ──
+    if (signImg) {
+      const sH = 22
+      const sW = Math.min((signImg.w * sH) / signImg.h, 40)
+      const sX = RX - sW
+      const sY = H - 48
+      pdf.setTextColor(...gray)
+      pdf.setFont('helvetica', 'normal')
+      pdf.setFontSize(7.5)
+      pdf.text('Signature autorisée', sX + sW / 2, sY - 3, { align: 'center' })
+      pdf.addImage(signImg.data, 'PNG', sX, sY, sW, sH)
+    }
+
+    // ── MENTION LÉGALE ──
     pdf.setTextColor(160, 160, 160)
     pdf.setFont('helvetica', 'italic')
     pdf.setFontSize(7)
@@ -257,7 +273,7 @@ export default function ViewProforma() {
       W / 2, H - 16, { align: 'center' }
     )
 
-    // FOOTER
+    // ── FOOTER ──
     pdf.setFillColor(...blue)
     pdf.rect(0, H - 12, W, 12, 'F')
     pdf.setTextColor(...white)
@@ -267,7 +283,7 @@ export default function ViewProforma() {
     pdf.text(settings?.phone || '', W / 2, H - 5, { align: 'center' })
     pdf.text(settings?.email || '', RX, H - 5, { align: 'right' })
 
-    // NOM FICHIER
+    // ── NOM FICHIER ──
     const entreprise = (settings?.company_name || 'GBEFFA').replace(/\s+/g, '_')
     const client = (proforma.client_name || 'Client').replace(/\s+/g, '_')
     pdf.save(`${entreprise}_${client}_${proforma.numero}.pdf`)
@@ -478,7 +494,7 @@ export default function ViewProforma() {
         </div>
       )}
 
-      {/* APERÇU PROFORMA - responsive avec scroll horizontal sur mobile */}
+      {/* APERÇU PROFORMA */}
       {!editMode && (
         <div className="max-w-4xl mx-auto px-2 sm:px-4 pb-10">
           <div className="overflow-x-auto">
@@ -530,19 +546,25 @@ export default function ViewProforma() {
 
               {/* Tableau */}
               <div style={{ padding: '0 30px 14px' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', tableLayout: 'fixed' }}>
+                  <colgroup>
+                    <col style={{ width: '50%' }} />
+                    <col style={{ width: '12%' }} />
+                    <col style={{ width: '18%' }} />
+                    <col style={{ width: '20%' }} />
+                  </colgroup>
                   <thead>
                     <tr style={{ backgroundColor: '#1a3a5c', color: 'white' }}>
-                      <th style={{ padding: '10px 12px', textAlign: 'left', width: '50%' }}>DÉSIGNATION</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'center', width: '12%' }}>QTY</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'center', width: '18%' }}>P.U (FCFA)</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'right', width: '20%' }}>MONTANT (FCFA)</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'left' }}>DÉSIGNATION</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'center' }}>QTY</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'center' }}>P.U (FCFA)</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'right' }}>MONTANT (FCFA)</th>
                     </tr>
                   </thead>
                   <tbody>
                     {items.map((item, i) => (
                       <tr key={i} style={{ backgroundColor: i % 2 === 0 ? 'white' : '#f9fafb' }}>
-                        <td style={{ padding: '10px 12px' }}>{item.designation}</td>
+                        <td style={{ padding: '10px 12px', wordBreak: 'break-word' }}>{item.designation}</td>
                         <td style={{ padding: '10px 12px', textAlign: 'center' }}>{item.qty}</td>
                         <td style={{ padding: '10px 12px', textAlign: 'center' }}>{Number(item.pu).toLocaleString('fr-FR')}</td>
                         <td style={{ padding: '10px 12px', textAlign: 'right' }}>{Number(item.montant).toLocaleString('fr-FR')}</td>
@@ -579,6 +601,17 @@ export default function ViewProforma() {
                   <div key={i} style={{ fontSize: '12px' }}>• {line}</div>
                 ))}
               </div>
+
+              {/* Signature */}
+              {settings?.signature_url && (
+                <div style={{ padding: '0 30px 14px', display: 'flex', justifyContent: 'flex-end' }}>
+                  <div style={{ textAlign: 'center' }}>
+                    <p style={{ fontSize: '10px', color: '#888', marginBottom: '4px' }}>Signature autorisée</p>
+                    <img src={settings.signature_url} alt="Signature"
+                      style={{ height: '80px', objectFit: 'contain' }} crossOrigin="anonymous" />
+                  </div>
+                </div>
+              )}
 
               {/* Mention légale */}
               <div style={{ padding: '8px 30px', textAlign: 'center' }}>
